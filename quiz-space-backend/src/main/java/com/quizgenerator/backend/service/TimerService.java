@@ -9,7 +9,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.annotation.PostConstruct;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -33,7 +34,7 @@ public class TimerService {
      * On server start, reload any attempts that were IN_PROGRESS before the
      * restart so their timers resume correctly.
      */
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void restoreActiveAttempts() {
         List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
         for (QuizAttempt a : active) {

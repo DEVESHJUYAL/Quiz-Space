@@ -11,7 +11,7 @@ import java.util.function.Function;
 @Service
 public class JwtService {
     @Value("${jwt.secret}") private String secret;
-    @Value("${jwt.expiration}") private long expiration;
+    @Value("${jwt.expiration:86400000}") private long expiration;
 
     public String generateToken(String email) {
         return Jwts.builder()
