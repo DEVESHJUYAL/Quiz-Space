@@ -34,31 +34,17 @@ public class TimerService {
      * On server start, reload any attempts that were IN_PROGRESS before the
      * restart so their timers resume correctly.
      */
+    // schema.sql runs before this — tables are guaranteed to exist
     @EventListener(ApplicationReadyEvent.class)
     public void restoreActiveAttempts() {
-        // Retry loop: on a fresh database ddl-auto=update may still be creating
-        // tables when ApplicationReadyEvent fires. We retry until tables exist.
-        int maxAttempts = 10;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
-                for (QuizAttempt a : active) {
-                    long expiry = toEpochSeconds(a.getStartedAt())
-                            + a.getQuiz().getDurationMinutes() * 60L;
-                    expiryMap.put(a.getId(), expiry);
-                }
-                if (!active.isEmpty())
-                    System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
-                return;
-            } catch (Exception e) {
-                if (attempt == maxAttempts) {
-                    System.out.println("[TimerService] Failed to restore after " + maxAttempts + " attempts: " + e.getMessage());
-                } else {
-                    System.out.println("[TimerService] Tables not ready, retrying in 2s (" + attempt + "/" + maxAttempts + ")...");
-                    try { Thread.sleep(2000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
-                }
-            }
+        List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
+        for (QuizAttempt a : active) {
+            long expiry = toEpochSeconds(a.getStartedAt())
+                    + a.getQuiz().getDurationMinutes() * 60L;
+            expiryMap.put(a.getId(), expiry);
         }
+        if (!active.isEmpty())
+            System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
     }
 
     /**
