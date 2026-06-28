@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────
+#  Quiz Space — monorepo .gitignore
+#  Covers: quiz-space-frontend (Vite/React)
+#          quiz-space-backend  (Spring Boot / Maven)
+# ─────────────────────────────────────────────
+
+# ── OS & Editor ──────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── Frontend (quiz-space-frontend) ───────────
+quiz-space-frontend/node_modules/
+quiz-space-frontend/dist/
+quiz-space-frontend/.env
+quiz-space-frontend/.env.local
+quiz-space-frontend/.env.*.local
+quiz-space-frontend/.env.production
+quiz-space-frontend/.vite/
+
+# Logs
+quiz-space-frontend/npm-debug.log*
+quiz-space-frontend/yarn-debug.log*
+quiz-space-frontend/yarn-error.log*
+quiz-space-frontend/pnpm-debug.log*
+
+# ── Backend (quiz-space-backend) ─────────────
+
+# Maven build output
+quiz-space-backend/target/
+quiz-space-backend/.mvn/wrapper/maven-wrapper.jar
+!quiz-space-backend/.mvn/wrapper/maven-wrapper.properties
+
+# Spring Boot application secrets — NEVER commit these
+quiz-space-backend/src/main/resources/application.properties
+quiz-space-backend/src/main/resources/application.yml
+quiz-space-backend/src/main/resources/application-prod.properties
+quiz-space-backend/src/main/resources/application-prod.yml
+
+# Keep the example template but not the real one
+!quiz-space-backend/src/main/resources/application.example.properties
+
+# Logs
+quiz-space-backend/*.log
+quiz-space-backend/logs/
+
+# Compiled class files
+*.class
+
+# Package files
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+
+# STS / Eclipse
+quiz-space-backend/.apt_generated
+quiz-space-backend/.classpath
+quiz-space-backend/.factorypath
+quiz-space-backend/.project
+quiz-space-backend/.settings
+quiz-space-backend/.springBeans
+quiz-space-backend/.sts4-cache
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ── Secrets (belt + suspenders) ──────────────
+*.env
+.env*
+!.env.example
+secrets/
