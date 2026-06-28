@@ -36,11 +36,21 @@ public class TimerService {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void restoreActiveAttempts() {
-        List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
-        for (QuizAttempt a : active) {
-            long expiry = toEpochSeconds(a.getStartedAt())
-                    + a.getQuiz().getDurationMinutes() * 60L;
-            expiryMap.put(a.getId(), expiry);
+        // Wrap in try-catch: on first-ever boot the tables don't exist yet
+        // (ddl-auto=update runs concurrently). A missing table is not fatal —
+        // there are no in-progress attempts to restore anyway.
+        try {
+            List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
+            for (QuizAttempt a : active) {
+                long expiry = toEpochSeconds(a.getStartedAt())
+                        + a.getQuiz().getDurationMinutes() * 60L;
+                expiryMap.put(a.getId(), expiry);
+            }
+            if (!active.isEmpty())
+                System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
+        } catch (Exception e) {
+            // Tables not yet created — safe to ignore on first boot
+            System.out.println("[TimerService] Skipping restore on first boot (tables not ready): " + e.getMessage());
         }
     }
 
