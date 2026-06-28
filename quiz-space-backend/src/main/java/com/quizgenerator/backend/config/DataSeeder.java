@@ -19,8 +19,6 @@ public class DataSeeder {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Set these in application.properties or as Render environment variables.
-    // Defaults are provided so the app works out of the box locally.
     @Value("${admin.email:admin@quizspace.app}")
     private String adminEmail;
 
@@ -32,25 +30,39 @@ public class DataSeeder {
 
     @EventListener(ApplicationReadyEvent.class)
     public void seed() {
-        if (userRepository.existsByEmail(adminEmail)) {
-            log.info("Admin account already exists: {}", adminEmail);
-            return;
+        // Retry up to 10 times with 2-second intervals.
+        // On a fresh database, ddl-auto=update may still be creating tables
+        // when ApplicationReadyEvent fires. Retrying guarantees we catch the
+        // window between "tables created" and "first request".
+        int maxAttempts = 10;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                if (userRepository.existsByEmail(adminEmail)) {
+                    log.info("Admin account already exists: {}", adminEmail);
+                    return;
+                }
+                User admin = User.builder()
+                        .name(adminName)
+                        .email(adminEmail)
+                        .password(passwordEncoder.encode(adminPassword))
+                        .role(Role.TEACHER)
+                        .build();
+                userRepository.save(admin);
+                log.info("===================================================");
+                log.info("  Default admin account created");
+                log.info("  Email    : {}", adminEmail);
+                log.info("  Password : {}", adminPassword);
+                log.info("  Role     : TEACHER");
+                log.info("===================================================");
+                return;
+            } catch (Exception e) {
+                if (attempt == maxAttempts) {
+                    log.error("DataSeeder failed after {} attempts: {}", maxAttempts, e.getMessage());
+                } else {
+                    log.warn("DataSeeder attempt {}/{} failed, retrying in 2s...", attempt, maxAttempts);
+                    try { Thread.sleep(2000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
+                }
+            }
         }
-
-        User admin = User.builder()
-                .name(adminName)
-                .email(adminEmail)
-                .password(passwordEncoder.encode(adminPassword))
-                .role(Role.TEACHER)
-                .build();
-
-        userRepository.save(admin);
-        log.info("===================================================");
-        log.info("  Default admin account created");
-        log.info("  Email    : {}", adminEmail);
-        log.info("  Password : {}", adminPassword);
-        log.info("  Role     : TEACHER");
-        log.info("  Change the password after first login!");
-        log.info("===================================================");
     }
 }

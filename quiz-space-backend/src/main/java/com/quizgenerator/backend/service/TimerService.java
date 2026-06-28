@@ -36,21 +36,28 @@ public class TimerService {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void restoreActiveAttempts() {
-        // Wrap in try-catch: on first-ever boot the tables don't exist yet
-        // (ddl-auto=update runs concurrently). A missing table is not fatal —
-        // there are no in-progress attempts to restore anyway.
-        try {
-            List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
-            for (QuizAttempt a : active) {
-                long expiry = toEpochSeconds(a.getStartedAt())
-                        + a.getQuiz().getDurationMinutes() * 60L;
-                expiryMap.put(a.getId(), expiry);
+        // Retry loop: on a fresh database ddl-auto=update may still be creating
+        // tables when ApplicationReadyEvent fires. We retry until tables exist.
+        int maxAttempts = 10;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
+                for (QuizAttempt a : active) {
+                    long expiry = toEpochSeconds(a.getStartedAt())
+                            + a.getQuiz().getDurationMinutes() * 60L;
+                    expiryMap.put(a.getId(), expiry);
+                }
+                if (!active.isEmpty())
+                    System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
+                return;
+            } catch (Exception e) {
+                if (attempt == maxAttempts) {
+                    System.out.println("[TimerService] Failed to restore after " + maxAttempts + " attempts: " + e.getMessage());
+                } else {
+                    System.out.println("[TimerService] Tables not ready, retrying in 2s (" + attempt + "/" + maxAttempts + ")...");
+                    try { Thread.sleep(2000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
+                }
             }
-            if (!active.isEmpty())
-                System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
-        } catch (Exception e) {
-            // Tables not yet created — safe to ignore on first boot
-            System.out.println("[TimerService] Skipping restore on first boot (tables not ready): " + e.getMessage());
         }
     }
 
