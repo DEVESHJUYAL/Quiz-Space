@@ -35,6 +35,7 @@ public class DataSeeder {
         // Small delay to ensure ddl-auto=update has finished creating/altering tables.
         // Hibernate's schema update runs on the main thread before ApplicationReadyEvent
         // but on a slow remote DB it can still be in-flight. 3 seconds is safe.
+        
         try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 
         try {
