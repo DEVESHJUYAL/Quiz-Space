@@ -1,79 +1,62 @@
--- Quiz Space — PostgreSQL schema
--- Spring Boot runs this BEFORE Hibernate and BEFORE any @EventListener.
--- Using CREATE TABLE IF NOT EXISTS means it's safe to run on every boot.
+package com.quizgenerator.backend.config;
 
-CREATE TABLE IF NOT EXISTS users (
-                                     id       BIGSERIAL PRIMARY KEY,
-                                     name     VARCHAR(255) NOT NULL,
-    email    VARCHAR(255) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    role     VARCHAR(50)  NOT NULL
-    );
+import com.quizgenerator.backend.model.Role;
+import com.quizgenerator.backend.model.User;
+import com.quizgenerator.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
 
-CREATE TABLE IF NOT EXISTS quizzes (
-                                       id               BIGSERIAL PRIMARY KEY,
-                                       title            VARCHAR(255) NOT NULL,
-    description      TEXT,
-    duration_minutes INTEGER      NOT NULL,
-    open_at          TIMESTAMP,
-    close_at         TIMESTAMP,
-    quiz_code        VARCHAR(50) UNIQUE,
-    teacher_id       BIGINT NOT NULL REFERENCES users(id),
-    is_published     BOOLEAN NOT NULL DEFAULT FALSE
-    );
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class DataSeeder {
 
-CREATE TABLE IF NOT EXISTS quiz_allowed_students (
-                                                     quiz_id BIGINT       NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-    email   VARCHAR(255) NOT NULL,
-    PRIMARY KEY (quiz_id, email)
-    );
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-CREATE TABLE IF NOT EXISTS questions (
-                                         id             BIGSERIAL PRIMARY KEY,
-                                         text           TEXT        NOT NULL,
-                                         type           VARCHAR(50) NOT NULL,
-    marks          INTEGER     NOT NULL,
-    question_order INTEGER     NOT NULL,
-    quiz_id        BIGINT      NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-    correct_answer TEXT
-    );
+    @Value("${admin.email:admin@quizspace.app}")
+    private String adminEmail;
 
-CREATE TABLE IF NOT EXISTS options (
-                                       id          BIGSERIAL PRIMARY KEY,
-                                       text        VARCHAR(255) NOT NULL,
-    is_correct  BOOLEAN      NOT NULL DEFAULT FALSE,
-    question_id BIGINT       NOT NULL REFERENCES questions(id) ON DELETE CASCADE
-    );
+    @Value("${admin.password:Admin@123}")
+    private String adminPassword;
 
-CREATE TABLE IF NOT EXISTS quiz_attempts (
-                                             id                   BIGSERIAL PRIMARY KEY,
-                                             quiz_id              BIGINT      NOT NULL REFERENCES quizzes(id),
-    student_id           BIGINT      NOT NULL REFERENCES users(id),
-    started_at           TIMESTAMP   NOT NULL,
-    submitted_at         TIMESTAMP,
-    score                INTEGER,
-    status               VARCHAR(50) NOT NULL,
-    tab_switch_count     INTEGER     DEFAULT 0,
-    fullscreen_exit_count INTEGER    DEFAULT 0,
-    devtools_count       INTEGER     DEFAULT 0,
-    browser_crash_count  INTEGER     DEFAULT 0,
-    CONSTRAINT uq_quiz_student UNIQUE (quiz_id, student_id)
-    );
+    @Value("${admin.name:Quiz Space Admin}")
+    private String adminName;
 
-CREATE TABLE IF NOT EXISTS student_answers (
-                                               id           BIGSERIAL PRIMARY KEY,
-                                               attempt_id   BIGINT  NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
-    question_id  BIGINT  NOT NULL REFERENCES questions(id),
-    response     TEXT,
-    is_correct   BOOLEAN,
-    marks_awarded INTEGER
-    );
+    @EventListener(ApplicationReadyEvent.class)
+    @Order(1) // run after TimerService (which has no Order = lowest priority)
+    public void seed() {
+        // Small delay to ensure ddl-auto=update has finished creating/altering tables.
+        // Hibernate's schema update runs on the main thread before ApplicationReadyEvent
+        // but on a slow remote DB it can still be in-flight. 3 seconds is safe.
+        try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 
-CREATE TABLE IF NOT EXISTS solution_uploads (
-                                                id          BIGSERIAL PRIMARY KEY,
-                                                quiz_id     BIGINT       NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-    image_url   VARCHAR(500) NOT NULL,
-    public_id   VARCHAR(255) NOT NULL,
-    caption     TEXT,
-    uploaded_at TIMESTAMP    NOT NULL
-    );
+        try {
+            if (userRepository.existsByEmail(adminEmail)) {
+                log.info("Admin account already exists: {}", adminEmail);
+                return;
+            }
+            User admin = User.builder()
+                    .name(adminName)
+                    .email(adminEmail)
+                    .password(passwordEncoder.encode(adminPassword))
+                    .role(Role.TEACHER)
+                    .build();
+            userRepository.save(admin);
+            log.info("===================================================");
+            log.info("  Default admin account created");
+            log.info("  Email    : {}", adminEmail);
+            log.info("  Password : {}", adminPassword);
+            log.info("  Role     : TEACHER");
+            log.info("===================================================");
+        } catch (Exception e) {
+            log.error("DataSeeder failed — admin account not created: {}", e.getMessage());
+        }
+    }
+}
