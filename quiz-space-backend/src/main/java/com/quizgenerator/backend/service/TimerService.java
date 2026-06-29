@@ -34,17 +34,22 @@ public class TimerService {
      * On server start, reload any attempts that were IN_PROGRESS before the
      * restart so their timers resume correctly.
      */
-    // schema.sql runs before this — tables are guaranteed to exist
     @EventListener(ApplicationReadyEvent.class)
     public void restoreActiveAttempts() {
-        List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
-        for (QuizAttempt a : active) {
-            long expiry = toEpochSeconds(a.getStartedAt())
-                    + a.getQuiz().getDurationMinutes() * 60L;
-            expiryMap.put(a.getId(), expiry);
+        // Wait for ddl-auto=update to finish on a remote DB before querying
+        try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        try {
+            List<QuizAttempt> active = attemptRepository.findActiveAttemptsWithQuiz();
+            for (QuizAttempt a : active) {
+                long expiry = toEpochSeconds(a.getStartedAt())
+                        + a.getQuiz().getDurationMinutes() * 60L;
+                expiryMap.put(a.getId(), expiry);
+            }
+            if (!active.isEmpty())
+                System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
+        } catch (Exception e) {
+            System.out.println("[TimerService] Could not restore active attempts: " + e.getMessage());
         }
-        if (!active.isEmpty())
-            System.out.println("[TimerService] Restored " + active.size() + " in-progress attempt(s)");
     }
 
     /**
